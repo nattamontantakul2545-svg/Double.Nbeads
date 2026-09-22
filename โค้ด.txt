@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bead Shop Catalog</title>
+    <!-- นำเข้า Tailwind CSS สำหรับการตกแต่งหน้าตาเว็บให้สวยงามแบบมินิมอล -->
+    <script src="https://jsdelivr.net"></script>
+    <link href="https://googleapis.com" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #FAF6F0; }
+        .tab-active { background-color: #E8D5C4; color: #3D251E; font-weight: bold; }
+    </style>
+</head>
+<body class="p-4 max-w-md mx-auto min-h-screen pb-12">
+
+    <!-- ส่วนหัวของร้าน -->
+    <header class="text-center my-6">
+        <h1 class="text-2xl font-bold text-[#5C3D2E]">✨ แคตตาล็อกสินค้าออนไลน์ ✨</h1>
+        <p class="text-sm text-gray-500 mt-1">ร้านลูกปัดและอุปกรณ์ DIY</p>
+    </header>
+
+    <!-- ช่องค้นหาสินค้า -->
+    <div class="mb-4">
+        <input type="text" id="searchBar" onkeyup="searchProducts()" placeholder="🔍 ค้นหาชื่อสินค้า หรือขนาด (เช่น 6 mm)..." 
+            class="w-full p-3 rounded-xl border border-gray-200 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[#E8D5C4]">
+    </div>
+
+    <!-- แท็บสลับหมวดหมู่สินค้า 3 แท็บ -->
+    <div class="flex gap-2 mb-6 text-sm overflow-x-auto pb-2">
+        <button onclick="switchTab('ลูกปัดแก้ว')" id="tab-ลูกปัดแก้ว" class="tab-button flex-1 py-2 px-3 rounded-lg bg-white border border-gray-100 shadow-sm text-gray-600 text-center whitespace-nowrap">🔮 ลูกปัดแก้ว</button>
+        <button onclick="switchTab('ดอกไม้อะคริลิก')" id="tab-ดอกไม้อะคริลิก" class="tab-button flex-1 py-2 px-3 rounded-lg bg-white border border-gray-100 shadow-sm text-gray-600 text-center whitespace-nowrap">🌸 ดอกไม้อะคริลิก</button>
+        <button onclick="switchTab('จี้ใบไม้')" id="tab-จี้ใบไม้" class="tab-button flex-1 py-2 px-3 rounded-lg bg-white border border-gray-100 shadow-sm text-gray-600 text-center whitespace-nowrap">🍃 จี้ใบไม้</button>
+    </div>
+
+    <!-- พื้นที่แสดงรายชื่อสินค้า จัดการแสดงผล 2 คอลัมน์เหมาะกับจอมือถือ -->
+    <div id="productGrid" class="grid grid-cols-2 gap-3">
+        <p class="text-center text-gray-400 col-span-2 py-8">กำลังโหลดข้อมูลสินค้าจากระบบ...</p>
+    </div>
+
+    <script>
+        // 🚨 สเต็ปสำคัญ: วางลิงก์ CSV จาก Google Sheets ของคุณตรงนี้แทนที่คำในเครื่องหมายคำพูดได้เลยค่ะ
+        const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQDO8WDvRPktSnhXnsaioNKI6iP5nN8HFBBdLqEzYk3xc3kD7K3Vwoj5fZb_E0c19D-imLHzuP-1SEB/pub?output=csv";
+
+        let allProducts = { "ลูกปัดแก้ว": [], "ดอกไม้อะคริลิก": [], "จี้ใบไม้": [] };
+        let currentTab = "ลูกปัดแก้ว";
+
+        // ฟังก์ชันดึงข้อมูลจาก Google Sheets
+        async function fetchCatalogData() {
+            try {
+                const response = await fetch(SHEET_CSV_URL);
+                const data = await response.text();
+                parseCSV(data);
+                switchTab('ลูกปัดแก้ว'); // เริ่มต้นที่หมวดหมู่แรก
+            } catch (error) {
+                document.getElementById('productGrid').innerHTML = '<p class="text-center text-red-500 col-span-2 py-8">ไม่สามารถโหลดข้อมูลได้ กรุณาเช็กการตั้งค่าแชร์ไฟล์ใน Sheets</p>';
+            }
+        }
+
+        // ฟังก์ชันแปลงข้อมูล CSV ให้อยู่ในรูปแบบที่ระบบเข้าใจ
+        function parseCSV(text) {
+            const lines = text.split("\n");
+            let currentCategory = "";
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                // ตรวจสอบชื่อหน้าแท็บหมวดหมู่
+                if (line.includes("🔮 ลูกปัดแก้ว") || line.toLowerCase().includes("ลูกปัดแก้ว")) { currentCategory = "ลูกปัดแก้ว"; continue; }
+                if (line.includes("🌸 ดอกไม้อะคริลิก") || line.toLowerCase().includes("ดอกไม้อะคริลิก")) { currentCategory = "ดอกไม้อะคริลิก"; continue; }
+                if (line.includes("🍃 จี้ใบไม้") || line.toLowerCase().includes("จี้ใบไม้")) { currentCategory = "จี้ใบไม้"; continue; }
+
+                const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*\$)/);
+                if (cols.length >= 4 && cols[0] !== "Name" && currentCategory) {
+                    allProducts[currentCategory].push({
+                        name: cols[0].replace(/"/g, ''),
+                        img: cols[1].replace(/"/g, ''),
+                        size: cols[2].replace(/"/g, ''),
+                        price: cols[3].replace(/"/g, ''),
+                        pack: cols[4] ? cols[4].replace(/"/g, '') : '-'
+                    });
+                }
+            }
+        }
+
+        // ฟังก์ชันแสดงผลการ์ดสินค้า
+        function renderProducts(products) {
+            const grid = document.getElementById('productGrid');
+            grid.innerHTML = '';
+
+            if (products.length === 0) {
+                grid.innerHTML = '<p class="text-center text-gray-400 col-span-2 py-8">ไม่พบสินค้าที่ค้นหา</p>';
+                return;
+            }
+
+            products.forEach(p => {
+                const card = document.createElement('div');
+                card.className = "bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between";
+                card.innerHTML = `
+                    <div>
+                        <div class="w-full aspect-square bg-gray-50 rounded-xl overflow-hidden mb-2">
+                            <img src="${p.img}" alt="${p.name}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co'">
+                        </div>
+                        <h3 class="text-sm font-semibold text-gray-800 line-clamp-2 min-h-[40px]">${p.name}</h3>
+                        <p class="text-xs text-gray-400 mt-0.5">ขนาด: ${p.size}</p>
+                    </div>
+                    <div class="mt-2 pt-2 border-t border-gray-50">
+                        <p class="text-sm font-bold text-[#7A402B]">${p.price}</p>
+                        <p class="text-[11px] text-gray-500">บรรจุ: ${p.pack}</p>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        // ฟังก์ชันสลับแท็บหมวดหมู่
+        function switchTab(tabName) {
+            currentTab = tabName;
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('tab-active'));
+            document.getElementById(`tab-${tabName}`).classList.add('tab-active');
+            document.getElementById('searchBar').value = ''; // เคลียร์ช่องค้นหาเวลาเปลี่ยนแท็บ
+            renderProducts(allProducts[tabName]);
+        }
+
+        // ฟังก์ชันค้นหาสินค้าพิมพ์แล้วกรองสด ๆ
+        function searchProducts() {
+            const query = document.getElementById('searchBar').value.toLowerCase();
+            const filtered = allProducts[currentTab].filter(p => 
+                p.name.toLowerCase().includes(query) || p.size.toLowerCase().includes(query)
+            );
+            renderProducts(filtered);
+        }
+
+        // เริ่มทำงานเมื่อเปิดหน้าเว็บ
+        fetchCatalogData();
+    </script>
+</body>
+</html>
+
+ถ้าคุณเปิดโปรแกรม Notepad เพื่อเซฟไฟล์เรียบร้อยแล้ว แจ้งให้ฉันทราบได้เลยนะคะ สเต็ปต่อไปคุณอยากให้พาไปทำการ "เปิดลิงก์ออนไลน์ฟรีบน GitHub" เลยไหมคะ หรือมีส่วนไหนในตัวโค้ดที่ต้องการปรับปรุงเพิ่มเติมก่อนเอาขึ้นเว็บจริงไหม?
+
